@@ -5,6 +5,7 @@
   "author": "CADBOT <charliec364@gmail.com>",
   "description": "A robot for the slooptroop slack channel",
   "dependencies": {
+    "dorfbot-youtube": "^0.1.1",
     "hubot": "^2.13.2",
     "hubot-diagnostics": "0.0.1",
     "hubot-google-images": "^0.1.5",
