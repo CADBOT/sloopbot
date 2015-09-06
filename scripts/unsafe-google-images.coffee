@@ -13,10 +13,7 @@ module.exports = (robot) ->
       msg.send url
 
 imageMe = (msg, query, cb) ->
-  # Using deprecated Google image search API
   bag = numAjaxCalls: 0
-  #['active', 'off'].forEach (setting) -> imageSearch(msg, {v: '1.0', rsz: '8', q: query}, setting, bag)
-  #2 + 2 until bag.numAjaxCalls == 2 
   imageSearch(msg, {v: '1.0', rsz: '8', q: query}, 'off', bag, cb)
   imageSearch(msg, {v: '1.0', rsz: '8', q: query}, 'active', bag, cb)
 
