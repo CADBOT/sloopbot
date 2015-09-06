@@ -1,82 +1,40 @@
 # Description:
 #   A way to interact with the Google Images API.
 #
-# Configuration
-#   HUBOT_GOOGLE_CSE_KEY - Your Google developer API key
-#   HUBOT_GOOGLE_CSE_ID - The ID of your Custom Search Engine
-#   HUBOT_MUSTACHIFY_URL - Optional. Allow you to use your own mustachify instance.
-#
 # Commands:
 #   hubot unsafe me <query> - The *modified* Original. Queries Google Images for <query> and returns a random top result.
+request = require 'superagent'
+
+numAjaxCalls = 0
 
 module.exports = (robot) ->
   robot.respond /(unsafe|us)( me)? (.*)/i, (msg) ->
     imageMe msg, msg.match[3], (url) ->
       msg.send url
 
-imageMe = (msg, query, animated, faces, cb) ->
-  cb = animated if typeof animated == 'function'
-  cb = faces if typeof faces == 'function'
-  googleCseId = process.env.HUBOT_GOOGLE_CSE_ID
-  if googleCseId
-    # Using Google Custom Search API
-    googleApiKey = process.env.HUBOT_GOOGLE_CSE_KEY
-    if !googleApiKey
-      msg.robot.logger.error "Missing environment variable HUBOT_GOOGLE_CSE_KEY"
-      msg.send "Missing server environment variable HUBOT_GOOGLE_CSE_KEY."
-      return
-    q =
-      q: query,
-      searchType:'image',
-      safe:'off',
-      fields:'items(link)',
-      cx: googleCseId,
-      key: googleApiKey
-    if typeof animated is 'boolean' and animated is true
-      q.fileType = 'gif'
-      q.hq = 'animated'
-    if typeof faces is 'boolean' and faces is true
-      q.imgType = 'face'
-    url = 'https://www.googleapis.com/customsearch/v1'
-    msg.http(url)
-      .query(q)
-      .get() (err, res, body) ->
-        if err
-          msg.send "Encountered an error :( #{err}"
-          return
-        if res.statusCode isnt 200
-          msg.send "Bad HTTP response :( #{res.statusCode}"
-          return
-        response = JSON.parse(body)
-        if response?.items
-          image = msg.random response.items
-          cb ensureImageExtension image.link
-        else
-          msg.send "Oops. I had trouble searching '#{query}'. Try later."
-          ((error) ->
-            msg.robot.logger.error error.message
-            msg.robot.logger
-              .error "(see #{error.extendedHelp})" if error.extendedHelp
-          ) error for error in response.error.errors if response.error?.errors
-  else
-    # Using deprecated Google image search API
-    q = v: '1.0', rsz: '8', q: query, safe: 'off'
-    q.imgtype = 'animated' if typeof animated is 'boolean' and animated is true
-    q.imgtype = 'face' if typeof faces is 'boolean' and faces is true
-    msg.http('https://ajax.googleapis.com/ajax/services/search/images')
-      .query(q)
-      .get() (err, res, body) ->
-        if err
-          msg.send "Encountered an error :( #{err}"
-          return
-        if res.statusCode isnt 200
-          msg.send "Bad HTTP response :( #{res.statusCode}"
-          return
-        images = JSON.parse(body)
-        images = images.responseData?.results
-        if images?.length > 0
-          image = msg.random images
-          cb ensureImageExtension image.unescapedUrl
+imageMe = (msg, query, cb) ->
+  # Using deprecated Google image search API
+  bag = numAjaxCalls: 0
+  #['active', 'off'].forEach (setting) -> imageSearch(msg, {v: '1.0', rsz: '8', q: query}, setting, bag)
+  #2 + 2 until bag.numAjaxCalls == 2 
+  imageSearch(msg, {v: '1.0', rsz: '8', q: query}, 'off', bag, cb)
+  imageSearch(msg, {v: '1.0', rsz: '8', q: query}, 'active', bag, cb)
+
+imageSearch = (msg, q, setting, bag, cb) ->
+  q.safe = setting
+  request
+    .get('https://ajax.googleapis.com/ajax/services/search/images')
+    .query(q)
+    .end (err, res) ->
+      if err
+        msg.send "Encountered an error :( #{err}"
+        return
+      if res.statusCode isnt 200
+        msg.send "Bad HTTP response :( #{res.statusCode}"
+        return
+      bag[setting] = JSON.parse(res.text).responseData?.results
+      bag.numAjaxCalls += 1
+      filterOutSafe(bag, msg, cb) if bag.numAjaxCalls == 2
 
 ensureImageExtension = (url) ->
   ext = url.split('.').pop()
@@ -84,3 +42,12 @@ ensureImageExtension = (url) ->
     url
   else
     "#{url}#.png"
+
+filterOutSafe = (bag, msg, cb) ->
+  safeImageIds = {}
+  bag.active.forEach (image) -> safeImageIds[image.imageId] = true
+  unsafeImages = bag.off.filter (image) ->
+    not safeImageIds[image.imageId]
+
+  image = msg.random(unsafeImages)
+  cb(image.unescapedUrl)
