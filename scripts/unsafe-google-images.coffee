@@ -33,13 +33,6 @@ imageSearch = (msg, q, setting, bag, cb) ->
       bag.numAjaxCalls += 1
       filterOutSafe(bag, msg, cb) if bag.numAjaxCalls == 2
 
-ensureImageExtension = (url) ->
-  ext = url.split('.').pop()
-  if /(png|jpe?g|gif)/i.test(ext)
-    url
-  else
-    "#{url}#.png"
-
 filterOutSafe = (bag, msg, cb) ->
   safeImageIds = {}
   bag.active.forEach (image) -> safeImageIds[image.imageId] = true
