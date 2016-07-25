@@ -1,0 +1,14 @@
+version: '2'
+services:
+  hubot:
+    build: .
+    environment:
+      - HUBOT_ADAPTER=slack
+      - HUBOT_SLACK_TOKEN
+      - REDIS_URL=redis://brain:6379
+    ports:
+      - "8080:8080"
+    depends_on:
+      - brain
+  brain:
+    image: redis
